@@ -586,9 +586,11 @@ class Client(RequestFactory):
 
     def force_login(self, user, backend=None):
         def get_backend():
-            from django.contrib.auth import load_backend
+            from django.contrib.auth import create_backend_with_parameters
             for backend_path in settings.AUTHENTICATION_BACKENDS:
-                backend = load_backend(backend_path)
+                backend = create_backend_with_parameters(
+                    backend_path
+                )
                 if hasattr(backend, 'get_user'):
                     return backend_path
         if backend is None:

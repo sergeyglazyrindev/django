@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.contrib import auth
-from django.contrib.auth import load_backend
+from django.contrib.auth import create_backend_with_parameters
 from django.contrib.auth.backends import RemoteUserBackend
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.deprecation import MiddlewareMixin
@@ -88,7 +88,10 @@ class RemoteUserMiddleware(MiddlewareMixin):
         clean_username method.
         """
         backend_str = request.session[auth.BACKEND_SESSION_KEY]
-        backend = auth.load_backend(backend_str)
+        backend = auth.create_backend_with_parameters(
+            backend_str,
+            request=request
+        )
         try:
             username = backend.clean_username(username)
         except AttributeError:  # Backend has no clean_username method.
@@ -101,7 +104,10 @@ class RemoteUserMiddleware(MiddlewareMixin):
         but only if the user is authenticated via the RemoteUserBackend.
         """
         try:
-            stored_backend = load_backend(request.session.get(auth.BACKEND_SESSION_KEY, ''))
+            stored_backend = create_backend_with_parameters(
+                request.session.get(auth.BACKEND_SESSION_KEY, ''),
+                request=request
+            )
         except ImportError:
             # backend failed to load
             auth.logout(request)

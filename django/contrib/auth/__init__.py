@@ -1,5 +1,6 @@
 import inspect
 import re
+import warnings
 
 from django.apps import apps as django_apps
 from django.conf import settings
@@ -8,6 +9,7 @@ from django.middleware.csrf import rotate_token
 from django.utils.crypto import constant_time_compare
 from django.utils.module_loading import import_string
 from django.utils.translation import LANGUAGE_SESSION_KEY
+from django.utils.deprecation import RemovedInNextVersionWarning
 
 from .signals import user_logged_in, user_logged_out, user_login_failed
 
@@ -18,13 +20,39 @@ REDIRECT_FIELD_NAME = 'next'
 
 
 def load_backend(path):
-    return import_string(path)()
+    warnings.warn(
+        "Please switch to the function create_backend_using_parameters."
+        "We will remove this function soon. Called with path: {}".format(
+            path
+        ),
+        RemovedInNextVersionWarning
+    )
+    return create_backend_with_parameters(path)
+
+
+def create_backend_with_parameters(path, request=None):
+    backend = import_string(path)()
+    if request:
+        if hasattr(backend, 'request'):
+            warnings.warn(
+                "Your function already uses internal variable 'request'."
+                "Please investigate if its necessary because its django job "
+                "to provide to backend object http 'request' property."
+                "Called with path: {}".format(
+                    path
+                ),
+                DeprecationWarning
+            )
+        else:
+            backend.request = request
+
+    return backend
 
 
 def _get_backends(return_tuples=False):
     backends = []
     for backend_path in settings.AUTHENTICATION_BACKENDS:
-        backend = load_backend(backend_path)
+        backend = create_backend_with_parameters(backend_path)
         backends.append((backend, backend_path) if return_tuples else backend)
     if not backends:
         raise ImproperlyConfigured(
@@ -182,7 +210,10 @@ def get_user(request):
         pass
     else:
         if backend_path in settings.AUTHENTICATION_BACKENDS:
-            backend = load_backend(backend_path)
+            backend = create_backend_with_parameters(
+                backend_path,
+                request=request
+            )
             user = backend.get_user(user_id)
             # Verify the session
             if hasattr(user, 'get_session_auth_hash'):
